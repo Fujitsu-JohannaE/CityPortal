@@ -1,0 +1,144 @@
+﻿@using CityPortal.Models
+@model FormFieldViewModel
+@{
+    var field    = Model.Field;
+    var vm       = Model.FormVm;
+    var value    = vm.GetValue(field.FieldKey);
+    var hasErr   = vm.HasError(field.FieldKey);
+    var errMsg   = vm.GetError(field.FieldKey);
+    var inputName = $"Values[{field.FieldKey}]";
+    var isConditional = !string.IsNullOrEmpty(field.ConditionalOnField);
+}
+
+<div class="mb-3 form-field-wrapper"
+     id="wrapper-@field.FieldKey"
+     @(isConditional
+         ? $"data-conditional-on=\"{field.ConditionalOnField}\" data-conditional-value=\"{field.ConditionalOnValue}\""
+         : "")
+     style="@(isConditional ? "display:none" : "")">
+
+    @* ── Label (skip for info blocks and checkboxes which have inline labels) ── *@
+    @if (field.FieldType != FieldTypes.Info
+      && field.FieldType != FieldTypes.Checkbox
+      && field.FieldType != FieldTypes.Hidden)
+    {
+        <label for="@field.FieldKey" class="form-label fw-semibold">
+            @field.Label
+            @if (field.IsRequired)
+            {
+                <span class="text-danger ms-1" aria-label="required">*</span>
+            }
+        </label>
+    }
+
+    @* ── Input rendering by type ──────────────────────────────────────────── *@
+
+    @switch (field.FieldType)
+    {
+        case FieldTypes.Textarea:
+            <textarea class="form-control @(hasErr ? "virheellinen arvo" : "")"
+                      id="@field.FieldKey"
+                      name="@inputName"
+                      rows="4"
+                      placeholder="@field.Placeholder"
+                      @(field.IsRequired ? "vaadittu" : "")>@value</textarea>
+            break;
+
+        case FieldTypes.Select:
+            <select class="form-select @(hasErr ? "virheellinen arvo" : "")"
+                    id="@field.FieldKey"
+                    name="@inputName"
+                    @(field.IsRequired ? "vaadittu" : "")>
+                <option value="">— Valitse —</option>
+                @foreach (var opt in field.GetOptions())
+                {
+                    <option value="@opt" selected="@(value == opt)">@opt</option>
+                }
+            </select>
+            break;
+
+        case FieldTypes.Radio:
+            <div id="@field.FieldKey" class="@(hasErr ? "virheellinen arvo" : "")">
+                @foreach (var opt in field.GetOptions())
+                {
+                    var radioId = $"{field.FieldKey}_{opt.GetHashCode()}";
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio"
+                               id="@radioId"
+                               name="@inputName"
+                               value="@opt"
+                               @(value == opt ? "valittu" : "")
+                               @(field.IsRequired ? "vaadittu" : "") />
+                        <label class="form-check-label" for="@radioId">@opt</label>
+                    </div>
+                }
+            </div>
+            break;
+
+        case FieldTypes.Checkbox:
+            <div class="form-check">
+                <input class="form-check-input @(hasErr ? "virheellinen arvo" : "")"
+                       type="checkbox"
+                       id="@field.FieldKey"
+                       name="@inputName"
+                       value="true"
+                       @(value == "true" ? "valittu" : "")
+                       @(field.IsRequired ? "vaadittu" : "") />
+                <label class="form-check-label" for="@field.FieldKey">
+                    @field.Label
+                    @if (field.IsRequired)
+                    {
+                        <span class="text-danger ms-1">*</span>
+                    }
+                </label>
+            </div>
+            break;
+
+        case FieldTypes.File:
+            <input class="form-control @(hasErr ? "virheellinen arvo" : "")"
+                   type="file"
+                   id="@field.FieldKey"
+                   name="Files[@field.FieldKey]"
+                   @(field.IsRequired ? "vaadittu" : "") />
+            break;
+
+        case FieldTypes.Info:
+            <div class="alert alert-info py-2">
+                <i class="bi bi-info-circle me-2"></i>@Html.Raw(field.HelpText)
+            </div>
+            break;
+
+        case FieldTypes.Hidden:
+            <input type="hidden" name="@inputName" value="@value" />
+            break;
+
+        default:
+            @* text, email, tel, date, number *@
+            <input class="form-control @(hasErr ? "virheellinen arvo" : "")"
+                   type="@field.FieldType"
+                   id="@field.FieldKey"
+                   name="@inputName"
+                   value="@value"
+                   placeholder="@field.Placeholder"
+                   @(!string.IsNullOrEmpty(field.ValidationRegex) ? $"malli=\"{field.ValidationRegex}\"" : "")
+                   @(field.IsRequired ? "vaadittu" : "") />
+            break;
+    }
+
+    @* ── Validation error ────────────────────────────────────────────────── *@
+    @if (hasErr)
+    {
+        <div class="invalid-feedback d-block">
+            <i class="bi bi-exclamation-circle me-1"></i>@errMsg
+        </div>
+    }
+
+    @* ── Help text (skip for Info type which embeds its own help) ────────── *@
+    @if (!string.IsNullOrEmpty(field.HelpText) && field.FieldType != FieldTypes.Info)
+    {
+        <div class="form-text text-muted">
+            <i class="bi bi-question-circle me-1"></i>@field.HelpText
+        </div>
+    }
+
+</div>

@@ -1,0 +1,64 @@
+﻿@{
+    ViewData["Title"] = "Suomi.fi Login";
+    var tenantSlug = ViewBag.TenantSlug as string;
+    var returnUrl = ViewBag.ReturnUrl as string ?? $"/{tenantSlug}/forms";
+}
+
+<div class="row justify-content-center">
+    <div class="col-md-5">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body p-4">
+                <div class="text-center mb-4">
+                    <div class="bg-primary text-white rounded-circle d-inline-flex
+                                align-items-center justify-content-center mb-3"
+                         style="width:56px;height:56px">
+                        <i class="bi bi-shield-lock fs-3"></i>
+                    </div>
+                    <h2 class="h4">Suomi.fi Tunnistautuminen</h2>
+                    <p class="text-muted small">
+                        Tämä lomake vaatii vahvistetun henkilöllisyyden.
+                        Tuotannossa tämä ohjaa Suomi.fi SAML2 -identiteettivälittäjälle.
+                    </p>
+                </div>
+
+                <div class="alert alert-warning small">
+                    <i class="bi bi-flask me-1"></i>
+                    <strong>Demo mode:</strong> Täytä alla olevat simuloidut henkilötiedot
+                    jatkaaksesi ilman oikeaa Suomi.fi-tiliä.
+                </div>
+
+                <form method="post" action="/@tenantSlug/auth/simulate-login">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="returnUrl" value="@returnUrl" />
+
+                    <div class="mb-3">
+                        <label class="form-label">Koko nimi</label>
+                        <input type="text" class="form-control" name="name"
+                               value="Liisa Korhonen" required />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Henkilötunnus (hetu)</label>
+                        <input type="text" class="form-control" name="hetu"
+                               value="010180-1234" required />
+                        <div class="form-text">Tallennetaan salattuna tuotannossa</div>
+                    </div>
+                    <div class="mb-4">
+                        <label class="form-label">Osoite (väestötietojärjestelmästä)</label>
+                        <input type="text" class="form-control" name="address"
+                               value="Ratatie 8 A 4, Vantaa" required />
+                    </div>
+
+                    <button type="submit" class="btn btn-primary w-100">
+                        <i class="bi bi-box-arrow-in-right me-2"></i>Tunnistaudu ja jatka
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <div class="text-center mt-3">
+            <a href="/@tenantSlug/forms" class="text-muted small">
+                <i class="bi bi-arrow-left me-1"></i>Takaisin lomakkeisiin
+            </a>
+        </div>
+    </div>
+</div>

@@ -1,0 +1,42 @@
+﻿@model CityPortal.Models.FormSubmission
+@{
+    ViewData["Title"] = "Request Submitted";
+    var tenantSlug = ViewBag.TenantSlug as string;
+}
+
+<div class="row justify-content-center">
+    <div class="col-md-7 text-center py-5">
+        <div class="mb-4">
+            <i class="bi bi-check-circle-fill text-success" style="font-size:4rem"></i>
+        </div>
+        <h1 class="h3 mb-2">Pyyntö lähetetty!</h1>
+        <p class="text-muted mb-4">
+            Lomakkeesi <strong>@Model?.FormTitle</strong> on vastaanotettu ja se käsitellään kaupungin viranomaisten toimesta.
+        </p>
+        @if (Model != null)
+        {
+            <div class="card border-0 bg-light text-start mb-4">
+                <div class="card-body small">
+                    <dl class="row mb-0">
+                        <dt class="col-5">Viitenumero</dt>
+                        <dd class="col-7 font-monospace">
+                            @Model.Id.ToString()[..8].ToUpper()
+                        </dd>
+                        <dt class="col-5">Lähetetty</dt>
+                        <dd class="col-7">@Model.SubmittedAt.ToString("dd.MM.yyyy HH:mm")</dd>
+                        <dt class="col-5">Lähettäjä</dt>
+                        <dd class="col-7">
+                            @(Model.IsAnonymous ? "Nimetön" : Model.SuomiFiName)
+                        </dd>
+                    </dl>
+                </div>
+            </div>
+        }
+        <a href="/@tenantSlug/forms" class="btn btn-primary me-2">
+            <i class="bi bi-arrow-left me-1"></i>Takaisin lomakkeisiin
+        </a>
+        <a href="/@tenantSlug/admin" class="btn btn-outline-secondary">
+            <i class="bi bi-inbox me-1"></i>Näytä postilaatikko
+        </a>
+    </div>
+</div>

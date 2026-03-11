@@ -1,0 +1,156 @@
+﻿@using CityPortal.Models
+@model FormViewModel
+@{
+    ViewData["Title"] = Model.Definition.Title;
+    var tenantSlug = ViewBag.TenantSlug as string ?? Context.Request.RouteValues["tenantSlug"]?.ToString();
+}
+
+<div class="row">
+    <div class="col-lg-8">
+
+        @* ── Page header ────────────────────────────────────────────────────── *@
+        <nav aria-label="breadcrumb" class="mb-3">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item">
+                    <a href="/@tenantSlug/forms">Lomakkeet</a>
+                </li>
+                <li class="breadcrumb-item active">@Model.Definition.Title</li>
+            </ol>
+        </nav>
+
+        <h1 class="h3 mb-1">@Model.Definition.Title</h1>
+        @if (!string.IsNullOrEmpty(Model.Definition.Description))
+        {
+            <p class="text-muted mb-4">@Model.Definition.Description</p>
+        }
+
+        @* ── Auth status banner ─────────────────────────────────────────────── *@
+        @if (Model.IsAuthenticated)
+        {
+            <div class="alert alert-success d-flex align-items-center mb-4">
+                <i class="bi bi-person-check-fill fs-4 me-3"></i>
+                <div>
+                    <strong>Tunnistautunut Suomi.fi:n kautta</strong><br />
+                    <small>
+                        Lähetät lomakkeen nimellä @Model.PrefilledData.GetValueOrDefault("complainantName", "tunnistautunut käyttäjä").
+                        Henkilötietosi on tallennettu turvallisesti.
+                    </small>
+                </div>
+            </div>
+        }
+        else if (Model.Definition.AllowAnonymous)
+        {
+            <div class="alert alert-info d-flex align-items-center mb-4">
+                <i class="bi bi-incognito fs-4 me-3"></i>
+                <div>
+                    <strong>Lähetät lomakkeen nimettömänä</strong><br />
+                    <small>
+                        Henkilöllisyyttäsi ei tallenneta.
+                        @if (Model.Definition.RequireSuomiFi == false)
+                        {
+                            <a href="/@tenantSlug/auth/login?returnUrl=/@tenantSlug/forms/@Model.Definition.Slug"
+                               class="alert-link">
+                                Tunnistaudu Suomi.fi:n kautta
+                            </a>
+                        }
+                    </small>
+                </div>
+            </div>
+        }
+
+        @* ── Validation summary ─────────────────────────────────────────────── *@
+        @if (Model.Errors.Any())
+        {
+            <div class="alert alert-danger" role="alert">
+                <i class="bi bi-exclamation-triangle me-2"></i>
+                <strong>Please correct the following errors:</strong>
+                <ul class="mb-0 mt-2">
+                    @foreach (var error in Model.Errors.Values)
+                    {
+                        <li>@error</li>
+                    }
+                </ul>
+            </div>
+        }
+
+        @* ── The form ───────────────────────────────────────────────────────── *@
+        <form method="post" enctype="multipart/form-data" novalidate>
+            @Html.AntiForgeryToken()
+
+            @foreach (var group in Model.GroupedFields)
+            {
+                if (!string.IsNullOrEmpty(group.Key))
+                {
+                    <fieldset class="mb-4">
+                        <legend class="h6 text-uppercase text-muted letter-spacing border-bottom pb-2 mb-3">
+                            @group.Key
+                        </legend>
+                        @foreach (var field in group)
+                        {
+                            <partial name="_FormField"
+                                     model="new FormFieldViewModel(field, Model)" />
+                        }
+                    </fieldset>
+                }
+                else
+                {
+                    @foreach (var field in group)
+                    {
+                        <partial name="_FormField"
+                                 model="new FormFieldViewModel(field, Model)" />
+                    }
+                }
+            }
+
+            <hr class="my-4" />
+
+            <div class="d-flex gap-2">
+                <button type="submit" class="btn btn-primary px-4">
+                    <i class="bi bi-send me-2"></i>Lähetä
+                </button>
+                <a href="/@tenantSlug/forms" class="btn btn-outline-secondary">
+                    Peruuta
+                </a>
+            </div>
+        </form>
+
+    </div>
+
+    @* ── Sidebar ─────────────────────────────────────────────────────────────── *@
+    <div class="col-lg-4">
+        <div class="card border-0 bg-light mt-5 mt-lg-0">
+            <div class="card-body">
+                <h6 class="card-title text-muted text-uppercase small mb-3">
+                    <i class="bi bi-info-circle me-1"></i>Lomakkeen tiedot
+                </h6>
+                <dl class="mb-0 small">
+                    <dt>Tunnistautuminen</dt>
+                    <dd>
+                        @if (Model.Definition.RequireSuomiFi)
+                        {
+                            <span class="badge bg-warning text-dark">Suomi.fi vaaditaan</span>
+                        }
+                        else
+                        {
+                            <span class="badge bg-success">Ei edellytä kirjatumista</span>
+                        }
+                    </dd>
+                    <dt class="mt-2">Kentät</dt>
+                    <dd>@Model.Fields.Count(f => f.FieldType != FieldTypes.Info) kenttää</dd>
+                    <dt class="mt-2">Pakolliset kentät</dt>
+                    <dd>@Model.Fields.Count(f => f.IsRequired)</dd>
+                </dl>
+            </div>
+        </div>
+
+        <div class="card border-0 border-start border-4 border-primary bg-light mt-3">
+            <div class="card-body small text-muted">
+                <strong>Demo huomautus</strong><br />
+                Tämä lomake rakennetaan dynaamisesti
+                <code>FormFields</code>-taulusta. Kenttien nimet, tyypit, validointi,
+                ryhmittely ja ehdollinen logiikka tulevat kaikki tietokannasta —
+                uusia kenttiä voi lisätä ilman koodimuutoksia.
+            </div>
+        </div>
+    </div>
+</div>

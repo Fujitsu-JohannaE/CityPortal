@@ -1,0 +1,126 @@
+﻿@using CityPortal.Models
+@model SubmissionListViewModel
+@{
+    ViewData["Title"] = "Saapuneet valvontapyynnöt";
+    var tenantSlug = ViewBag.TenantSlug as string;
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h1 class="h3 mb-0">
+            <i class="bi bi-inbox me-2 text-primary"></i>Saapuneet valvontapyynnöt
+        </h1>
+        <small class="text-muted">@Model.TenantName</small>
+    </div>
+    <span class="badge bg-primary fs-6">@Model.Submissions.Count submissions</span>
+</div>
+
+<div class="card border-0 bg-light mb-4">
+    <div class="card-body py-2">
+        <form method="get" class="row g-2 align-items-end">
+            <div class="col-auto">
+                <label class="form-label small mb-1">Status</label>
+                <select name="status" class="form-select form-select-sm"
+                        onchange="this.form.submit()">
+                    <option value="">Kaikki tilat</option>
+                    @foreach (var s in new[] { "Uusi", "Käsittelyssä", "Ratkaistu", "Hylätty" })
+                    {
+                        <option value="@s" selected="@(Model.StatusFilter == s)">@s</option>
+                    }
+                </select>
+            </div>
+            <div class="col-auto">
+                <label class="form-label small mb-1">Form</label>
+                <select name="form" class="form-select form-select-sm"
+                        onchange="this.form.submit()">
+                    <option value="">All forms</option>
+                    @foreach (var f in Model.AvailableForms)
+                    {
+                        <option value="@f" selected="@(Model.FormFilter == f)">@f</option>
+                    }
+                </select>
+            </div>
+            <div class="col-auto">
+                <a href="/@tenantSlug/admin" class="btn btn-sm btn-outline-secondary">
+                    <i class="bi bi-x me-1"></i>Tyhjennä
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+
+@if (!Model.Submissions.Any())
+{
+    <div class="text-center py-5 text-muted">
+        <i class="bi bi-inbox fs-1 d-block mb-2"></i>
+        Ei pyyntöjä.
+    </div>
+}
+else
+{
+    <div class="table-responsive">
+        <table class="table table-hover align-middle">
+            <thead class="table-light">
+                <tr>
+                    <th>Viite</th>
+                    <th>Lomake</th>
+                    <th>Lähetetty</th>
+                    <th>Henkilöllisyys</th>
+                    <th>Tila</th>
+                    <th>Vastuuhenkilö</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var sub in Model.Submissions)
+                {
+                    <tr>
+                        <td class="font-monospace text-muted small">
+                            @sub.Id.ToString()[..8].ToUpper()
+                        </td>
+                        <td><span class="fw-semibold">@sub.FormTitle</span></td>
+                        <td class="small text-muted">
+                            @sub.SubmittedAt.ToString("dd.MM.yyyy HH:mm")
+                        </td>
+                        <td>
+                            @if (sub.IsAnonymous)
+                            {
+                                <span class="badge bg-secondary">
+                                    <i class="bi bi-incognito me-1"></i>Nimetön
+                                </span>
+                            }
+                            else
+                            {
+                                <span class="badge bg-info text-dark">
+                                    <i class="bi bi-person-check me-1"></i>@sub.SuomiFiName
+                                </span>
+                            }
+                        </td>
+                        <td>
+                            @{
+                                var (badgeClass, icon) = sub.Status switch
+                                {
+                                    "Uusi"        => ("bg-danger", "bi-dot"),
+                                    "Käsittelyssä" => ("bg-warning text-dark", "bi-arrow-repeat"),
+                                    "Ratkaistu"   => ("bg-success", "bi-check"),
+                                    "Hylätty"     => ("bg-dark", "bi-x"),
+                                    _            => ("bg-secondary", "bi-question")
+                                };
+                            }
+                            <span class="badge @badgeClass">
+                                <i class="bi @icon me-1"></i>@sub.Status
+                            </span>
+                        </td>
+                        <td class="small text-muted">@(sub.AssignedTo ?? "—")</td>
+                        <td>
+                            <a href="/@tenantSlug/admin/submission/@sub.Id"
+                               class="btn btn-sm btn-outline-primary">
+                                <i class="bi bi-eye me-1"></i>Näytä
+                            </a>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
