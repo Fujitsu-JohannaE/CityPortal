@@ -1,0 +1,191 @@
+﻿@using CityPortal.Models
+@model SubmissionDetailViewModel
+@{
+    ViewData["Title"] = "Asiakirjan tiedot";
+    var sub        = Model.Submission;
+    var tenantSlug = ViewBag.TenantSlug as string;
+}
+
+<nav aria-label="breadcrumb" class="mb-4">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="/@tenantSlug/admin">Postilaatikko</a></li>
+        <li class="breadcrumb-item active">@sub.Id.ToString()[..8].ToUpper()</li>
+    </ol>
+</nav>
+
+<div class="row">
+
+    @* ── Left: submitted data ────────────────────────────────────────────────── *@
+    <div class="col-lg-8">
+        <div class="card border-0 shadow-sm mb-4">
+            <div class="card-header bg-white border-bottom d-flex
+                         justify-content-between align-items-center py-3">
+                <div>
+                    <h5 class="mb-0">@sub.FormTitle</h5>
+                    <small class="text-muted">
+                        Lähetetty @sub.SubmittedAt.ToString("dd.MM.yyyy HH:mm")
+                    </small>
+                </div>
+                @{
+                    var (badgeClass, icon) = sub.Status switch
+                    {
+                        "Uusi"        => ("bg-danger",  "bi-dot"),
+                        "Käsittelyssä" => ("bg-warning text-dark", "bi-arrow-repeat"),
+                        "Ratkaistu"   => ("bg-success", "bi-check"),
+                        "Hylätty"     => ("bg-dark",    "bi-x"),
+                        _            => ("bg-secondary","bi-question")
+                    };
+                }
+                <span class="badge @badgeClass fs-6">
+                    <i class="bi @icon me-1"></i>@sub.Status
+                </span>
+            </div>
+
+            <div class="card-body">
+                @* Identity row *@
+                <div class="alert @(sub.IsAnonymous ? "alert-secondary" : "alert-info") py-2 mb-4">
+                    @if (sub.IsAnonymous)
+                    {
+                        <i class="bi bi-incognito me-2"></i>
+                        <strong>Nimetön lähetys</strong>
+                        @if (!string.IsNullOrEmpty(sub.AnonymousEmail))
+                        {
+                            <span class="ms-2 text-muted">Yhteystieto: @sub.AnonymousEmail</span>
+                        }
+                    }
+                    else
+                    {
+                        <i class="bi bi-person-check me-2"></i>
+                        <strong>Suomi.fi verified:</strong> @sub.SuomiFiName
+                        <span class="ms-2 badge bg-light text-muted border font-monospace">
+                            hetu: @(sub.SuomiFiHetu != null ? "●●●●●●●●●●●" : "ei talletettu")
+                        </span>
+                    }
+                </div>
+
+                @* ── The key part: render FormData JSON using field definitions ── *@
+                @* Field labels come from FormFields table, values from JSON column *@
+                <dl class="row">
+                    @foreach (var (label, value) in Model.GetDisplayRows())
+                    {
+                        <dt class="col-sm-4 text-muted fw-normal small">@label</dt>
+                        <dd class="col-sm-8">
+                            @if (value == "true")
+                            {
+                                <i class="bi bi-check-square-fill text-success"></i>
+                                <span class="text-success ms-1">Kyllä</span>
+                            }
+                            else if (value == "false" || value == "—")
+                            {
+                                <span class="text-muted">@value</span>
+                            }
+                            else
+                            {
+                                @value
+                            }
+                        </dd>
+                    }
+                </dl>
+
+                @* Attachments *@
+                @if (sub.Attachments.Any())
+                {
+                    <hr />
+                    <h6 class="text-muted small text-uppercase mb-2">Liitteet</h6>
+                    @foreach (var att in sub.Attachments)
+                    {
+                        <div class="d-flex align-items-center p-2 bg-light rounded mb-2">
+                            <i class="bi bi-file-earmark me-2 text-muted"></i>
+                            <div>
+                                <div class="small fw-semibold">@att.FileName</div>
+                                <div class="text-muted" style="font-size:0.75rem">
+                                    @att.ContentType — @(att.FileSizeBytes / 1024) KB
+                                </div>
+                                <div class="font-monospace text-muted" style="font-size:0.7rem">
+                                    @att.BlobPath
+                                </div>
+                            </div>
+                        </div>
+                    }
+                }
+
+                @* Raw JSON — shows the actual stored data *@
+                <hr />
+                <details class="mt-3">
+                    <summary class="text-muted small cursor-pointer">
+                        <i class="bi bi-code-slash me-1"></i>
+                        View raw FormData JSON (stored in database column)
+                    </summary>
+                    <pre class="bg-dark text-success rounded p-3 mt-2 small">@System.Text.Json.JsonSerializer.Serialize(
+    sub.FormData,
+    new System.Text.Json.JsonSerializerOptions { WriteIndented = true }
+)</pre>
+                </details>
+            </div>
+        </div>
+    </div>
+
+    @* ── Right: case management ──────────────────────────────────────────────── *@
+    <div class="col-lg-4">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-white py-3">
+                <h6 class="mb-0">
+                    <i class="bi bi-pencil-square me-2"></i>Tapausten hallinta
+                </h6>
+            </div>
+            <div class="card-body">
+                <form method="post"
+                      action="/@tenantSlug/admin/submission/@sub.Id/status">
+                    @Html.AntiForgeryToken()
+
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold">Tila</label>
+                        <select name="status" class="form-select form-select-sm">
+                            @foreach (var s in new[]{"Uusi","Käsittelyssä","Ratkaistu","Hylätty"})
+                            {
+                                <option value="@s"
+                                        selected="@(sub.Status == s)">@s</option>
+                            }
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold">Vastuuhenkilö</label>
+                        <input type="text" name="assignedTo" class="form-control form-control-sm"
+                               value="@sub.AssignedTo" placeholder="Tiimi tai henkilön nimi" />
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold">Sisäiset muistiinpanot</label>
+                        <textarea name="internalNotes" class="form-control form-control-sm"
+                                  rows="4"
+                                  placeholder="Muistiinpanot näkyvät vain viranomaisille...">@sub.InternalNotes</textarea>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary btn-sm w-100">
+                        <i class="bi bi-save me-1"></i>Tallenna
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <div class="card border-0 bg-light mt-3">
+            <div class="card-body small text-muted">
+                <div class="mb-2">
+                    <strong>Viite:</strong>
+                    <span class="font-monospace">@sub.Id.ToString()[..8].ToUpper()</span>
+                </div>
+                <div class="mb-2">
+                    <strong>Lomake:</strong> @sub.FormSlug
+                </div>
+                <div>
+                    <strong>Kenttien nimet</strong> tulevat
+                    <code>FormFields</code>-taulusta.<br />
+                    <strong>Arvot</strong> tulevat
+                    <code>FormData</code>-JSON-sarakkeesta.
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>
