@@ -33,7 +33,7 @@
                 <label class="form-label small mb-1">Form</label>
                 <select name="form" class="form-select form-select-sm"
                         onchange="this.form.submit()">
-                    <option value="">All forms</option>
+                    <option value="">Kaikki lomakkeet</option>
                     @foreach (var f in Model.AvailableForms)
                     {
                         <option value="@f" selected="@(Model.FormFilter == f)">@f</option>

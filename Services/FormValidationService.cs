@@ -1,7 +1,6 @@
 ﻿using CityPortal.Data;
 using CityPortal.Models;
-using Microsoft.AspNetCore.Http;
-using Microsoft.VisualBasic.FileIO;
+using Microsoft.EntityFrameworkCore;
 using System.Text.RegularExpressions;
 
 namespace CityPortal.Services;
@@ -28,13 +27,13 @@ public class TenantContext : ITenantContext
 /// </summary>
 public class TenantResolver
 {
-    private readonly InMemoryTenantStore _store;
+    private readonly AppDbContext _db;
 
-    public TenantResolver(InMemoryTenantStore store) => _store = store;
+    public TenantResolver(AppDbContext db) => _db = db;
 
     public ITenantContext? Resolve(string tenantSlug)
     {
-        var tenant = _store.FindTenantBySlug(tenantSlug);
+        var tenant = _db.Tenants.FirstOrDefault(t => t.Slug == tenantSlug);
         if (tenant == null) return null;
         return new TenantContext
         {
@@ -55,20 +54,22 @@ public interface IFormService
 
 public class FormService : IFormService
 {
-    private readonly InMemoryTenantStore _store;
-    public FormService(InMemoryTenantStore store) => _store = store;
+    private readonly AppDbContext _db;
+    public FormService(AppDbContext db) => _db = db;
 
     public FormDefinition? GetForm(Guid tenantId, string slug)
     {
-        var db = _store.GetDb(tenantId);
-        return db.FormDefinitions
-                 .FirstOrDefault(f => f.Slug == slug && f.IsActive);
+        return _db.FormDefinitions
+                  .Include(f => f.Fields)
+                  .FirstOrDefault(f => f.TenantId == tenantId && f.Slug == slug && f.IsActive);
     }
 
     public List<FormDefinition> GetAllForms(Guid tenantId)
     {
-        var db = _store.GetDb(tenantId);
-        return db.FormDefinitions.Where(f => f.IsActive).ToList();
+        return _db.FormDefinitions
+                  .Include(f => f.Fields)
+                  .Where(f => f.TenantId == tenantId && f.IsActive)
+                  .ToList();
     }
 }
 
@@ -80,32 +81,38 @@ public interface ISubmissionService
     FormSubmission? GetById(Guid tenantId, Guid id);
     List<FormSubmission> GetAll(Guid tenantId, string? statusFilter, string? formFilter);
     FormSubmission UpdateStatus(Guid tenantId, Guid id, string status, string? notes, string? assignedTo);
+    void UpdateAttachments(Guid tenantId, Guid submissionId, List<AttachmentReference> attachments);
 }
 
 public class SubmissionService : ISubmissionService
 {
-    private readonly InMemoryTenantStore _store;
-    public SubmissionService(InMemoryTenantStore store) => _store = store;
+    private readonly AppDbContext _db;
+    public SubmissionService(AppDbContext db) => _db = db;
 
     public FormSubmission Save(Guid tenantId, FormSubmission submission)
     {
         submission.Id = Guid.NewGuid();
         submission.TenantId = tenantId;
         submission.SubmittedAt = DateTime.UtcNow;
-        _store.GetDb(tenantId).Submissions.Add(submission);
+        _db.FormSubmissions.Add(submission);
+        _db.SaveChanges();
         return submission;
     }
 
     public FormSubmission? GetById(Guid tenantId, Guid id) =>
-        _store.GetDb(tenantId).Submissions.FirstOrDefault(s => s.Id == id);
+        _db.FormSubmissions.FirstOrDefault(s => s.TenantId == tenantId && s.Id == id);
 
     public List<FormSubmission> GetAll(Guid tenantId, string? statusFilter, string? formFilter)
     {
-        var query = _store.GetDb(tenantId).Submissions.AsEnumerable();
+        var query = _db.FormSubmissions
+            .Where(s => s.TenantId == tenantId)
+            .AsQueryable();
+
         if (!string.IsNullOrEmpty(statusFilter))
             query = query.Where(s => s.Status == statusFilter);
         if (!string.IsNullOrEmpty(formFilter))
             query = query.Where(s => s.FormSlug == formFilter);
+
         return query.OrderByDescending(s => s.SubmittedAt).ToList();
     }
 
@@ -117,7 +124,16 @@ public class SubmissionService : ISubmissionService
         sub.Status = status;
         sub.InternalNotes = notes;
         sub.AssignedTo = assignedTo;
+        _db.SaveChanges();
         return sub;
+    }
+
+    public void UpdateAttachments(Guid tenantId, Guid submissionId, List<AttachmentReference> attachments)
+    {
+        var sub = GetById(tenantId, submissionId)
+            ?? throw new KeyNotFoundException();
+        sub.Attachments = attachments;
+        _db.SaveChanges();
     }
 }
 
