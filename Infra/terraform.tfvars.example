@@ -1,7 +1,0 @@
-# Demo environment
-subscription_id    = "d3177786-6927-4d65-b665-d94602b3784d"
-environment        = "dev"
-location           = "northeurope"
-sql_admin_login    = "sqladmin"
-sql_admin_password = "ItIsMarch_2026!"
-app_service_sku    = "B1"
