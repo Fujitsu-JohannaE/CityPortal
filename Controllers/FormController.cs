@@ -11,17 +11,20 @@ public class FormController : Controller
     private readonly IFormService _formService;
     private readonly ISubmissionService _submissionService;
     private readonly FormValidationService _validator;
+    private readonly IBlobStorageService _blobStorage;
 
     public FormController(
         TenantResolver tenantResolver,
         IFormService formService,
         ISubmissionService submissionService,
-        FormValidationService validator)
+        FormValidationService validator,
+        IBlobStorageService blobStorage)
     {
         _tenantResolver = tenantResolver;
         _formService = formService;
         _submissionService = submissionService;
         _validator = validator;
+        _blobStorage = blobStorage;
     }
 
     // ─── Index: list available forms for this tenant ─────────────────────────
@@ -45,7 +48,7 @@ public class FormController : Controller
     {
         var tenant = _tenantResolver.Resolve(tenantSlug);
         if (tenant == null) return NotFound();
-
+    
         var definition = _formService.GetForm(tenant.TenantId, slug);
         if (definition == null) return NotFound();
 
@@ -65,7 +68,7 @@ public class FormController : Controller
 
     [HttpPost("{slug}")]
     [ValidateAntiForgeryToken]
-    public IActionResult Submit(
+    public async Task<IActionResult> Submit(
         string tenantSlug,
         string slug,
         [FromForm] Dictionary<string, string> Values,
@@ -104,13 +107,26 @@ public class FormController : Controller
             FormData = Values,   // ← Dictionary<string,string> → JSON column
         };
 
-        // Simulate file attachment (in production: upload to Azure Blob)
+        // Upload file attachments to shared Azure Blob Storage
         foreach (var file in Files.Where(f => f.Value != null))
         {
+            var blobPath = $"{tenantSlug}/{slug}/{submission.Id}/{file.Value!.FileName}";
+            using var stream = file.Value.OpenReadStream();
+            var (uploadedPath, uploadError) = await _blobStorage.UploadAsync(
+                "form-attachments", blobPath, stream,
+                file.Value.ContentType, file.Value.FileName, file.Value.Length);
+
+            if (uploadError != null)
+            {
+                errors[file.Key] = uploadError;
+                var vm = BuildViewModel(definition, isAuthenticated, Values, errors);
+                return View("Render", vm);
+            }
+
             submission.Attachments.Add(new AttachmentReference
             {
-                FileName = file.Value!.FileName,
-                BlobPath = $"{tenantSlug}/{slug}/{submission.Id}/{file.Value.FileName}",
+                FileName = file.Value.FileName,
+                BlobPath = uploadedPath!,
                 ContentType = file.Value.ContentType,
                 FileSizeBytes = file.Value.Length
             });
@@ -134,6 +150,34 @@ public class FormController : Controller
         ViewBag.TenantSlug = tenantSlug;
         ViewBag.TenantName = tenant.TenantName;
         return View("Confirmation", submission);
+    }
+
+    // ─── Attachment download (proxied through app — no direct blob URLs) ──────
+
+    [HttpGet("{slug}/attachment/{submissionId}/{fileName}")]
+    public async Task<IActionResult> DownloadAttachment(
+        string tenantSlug, string slug, Guid submissionId, string fileName)
+    {
+        var tenant = _tenantResolver.Resolve(tenantSlug);
+        if (tenant == null) return NotFound();
+
+        var submission = _submissionService.GetById(tenant.TenantId, submissionId);
+        if (submission == null) return NotFound();
+
+        // Verify the attachment belongs to this submission
+        var attachment = submission.Attachments
+            .FirstOrDefault(a => a.FileName == fileName);
+        if (attachment == null) return NotFound();
+
+        // Check Defender scan result — block malicious files
+        if (attachment.MalwareScanResult == MalwareScanStatus.Malicious)
+            return StatusCode(403, "Tiedosto on estetty haittaohjelmien vuoksi.");
+
+        var result = await _blobStorage.DownloadAsync("form-attachments", attachment.BlobPath);
+        if (result == null)
+            return NotFound();
+
+        return File(result.Content, result.ContentType, result.FileName);
     }
 
     // ─── Helper ───────────────────────────────────────────────────────────────
