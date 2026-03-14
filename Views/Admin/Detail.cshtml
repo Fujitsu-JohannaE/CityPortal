@@ -91,19 +91,73 @@
                 @if (sub.Attachments.Any())
                 {
                     <hr />
-                    <h6 class="text-muted small text-uppercase mb-2">Liitteet</h6>
+                    <h6 class="text-muted small text-uppercase mb-2">
+                        <i class="bi bi-paperclip me-1"></i>Liitteet
+                    </h6>
                     @foreach (var att in sub.Attachments)
                     {
-                        <div class="d-flex align-items-center p-2 bg-light rounded mb-2">
-                            <i class="bi bi-file-earmark me-2 text-muted"></i>
-                            <div>
-                                <div class="small fw-semibold">@att.FileName</div>
+                        var isImage = att.ContentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase);
+                        var isMalicious = att.MalwareScanResult == "Malicious";
+                        var isPending = att.MalwareScanResult == "Pending";
+                        var isClean = att.MalwareScanResult == "Clean";
+
+                        <div class="d-flex align-items-center p-2 bg-light rounded mb-2 @(isMalicious ? "border border-danger" : "")">
+                            @if (isImage)
+                            {
+                                <i class="bi bi-file-earmark-image me-2 text-primary"></i>
+                            }
+                            else
+                            {
+                                <i class="bi bi-file-earmark me-2 text-muted"></i>
+                            }
+                            <div class="flex-grow-1">
+                                <div class="d-flex align-items-center gap-2">
+                                    <span class="small fw-semibold">@att.FileName</span>
+
+                                    @* Defender scan status badge *@
+                                    @if (isClean)
+                                    {
+                                        <span class="badge bg-success" title="Microsoft Defender: No threats found">
+                                            <i class="bi bi-shield-check me-1"></i>Puhdas
+                                        </span>
+                                    }
+                                    else if (isMalicious)
+                                    {
+                                        <span class="badge bg-danger" title="Microsoft Defender: Malware detected">
+                                            <i class="bi bi-shield-exclamation me-1"></i>Haittaohjelma
+                                        </span>
+                                    }
+                                    else if (isPending)
+                                    {
+                                        <span class="badge bg-warning text-dark" title="Scan in progress">
+                                            <i class="bi bi-hourglass-split me-1"></i>Tarkistus käynnissä
+                                        </span>
+                                    }
+                                </div>
                                 <div class="text-muted" style="font-size:0.75rem">
                                     @att.ContentType — @(att.FileSizeBytes / 1024) KB
                                 </div>
-                                <div class="font-monospace text-muted" style="font-size:0.7rem">
-                                    @att.BlobPath
-                                </div>
+                            </div>
+                            <div class="ms-2 d-flex gap-1">
+                                @if (!isMalicious)
+                                {
+                                    <a href="/@tenantSlug/admin/submission/@sub.Id/attachment/@att.FileName"
+                                       class="btn btn-sm btn-outline-primary" title="Lataa">
+                                        <i class="bi bi-download"></i>
+                                    </a>
+                                }
+                                @if (isPending)
+                                {
+                                    <form method="post"
+                                          action="/@tenantSlug/admin/submission/@sub.Id/attachment/@att.FileName/scan"
+                                          class="d-inline">
+                                        @Html.AntiForgeryToken()
+                                        <button type="submit" class="btn btn-sm btn-outline-secondary"
+                                                title="Päivitä tarkistuksen tila">
+                                            <i class="bi bi-arrow-clockwise"></i>
+                                        </button>
+                                    </form>
+                                }
                             </div>
                         </div>
                     }
