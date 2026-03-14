@@ -120,4 +120,37 @@ public class AttachmentReference
     public string BlobPath { get; set; } = default!;
     public string ContentType { get; set; } = default!;
     public long FileSizeBytes { get; set; }
+
+    /// <summary>
+    /// Tracks Microsoft Defender for Storage malware scan result.
+    /// Values: "Pending", "Clean", "Malicious", "Error"
+    /// </summary>
+    public string MalwareScanResult { get; set; } = MalwareScanStatus.Pending;
+}
+
+public static class MalwareScanStatus
+{
+    public const string Pending = "Pending";
+    public const string Clean = "Clean";
+    public const string Malicious = "Malicious";
+    public const string Error = "Error";
+}
+
+public static class AttachmentPolicy
+{
+    public const long MaxFileSizeBytes = 5 * 1024 * 1024; // 5 MB
+
+    public static readonly HashSet<string> AllowedContentTypes = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "image/jpeg",
+        "image/png",
+        "image/gif",
+        "image/webp",
+        "application/pdf"
+    };
+
+    public static readonly HashSet<string> AllowedExtensions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ".jpg", ".jpeg", ".png", ".gif", ".webp", ".pdf"
+    };
 }
