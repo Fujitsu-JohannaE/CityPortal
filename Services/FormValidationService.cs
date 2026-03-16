@@ -1,5 +1,6 @@
 ﻿using CityPortal.Data;
 using CityPortal.Models;
+using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using System.Text.RegularExpressions;
 
@@ -91,7 +92,8 @@ public class SubmissionService : ISubmissionService
 
     public FormSubmission Save(Guid tenantId, FormSubmission submission)
     {
-        submission.Id = Guid.NewGuid();
+        if (submission.Id == Guid.Empty)
+            submission.Id = Guid.NewGuid();
         submission.TenantId = tenantId;
         submission.SubmittedAt = DateTime.UtcNow;
         _db.FormSubmissions.Add(submission);
@@ -143,14 +145,28 @@ public class FormValidationService
 {
     public Dictionary<string, string> Validate(
         List<FormField> fields,
-        Dictionary<string, string> values)
+        Dictionary<string, string> values,
+        IFormFileCollection? files = null)
     {
         var errors = new Dictionary<string, string>();
 
         foreach (var field in fields)
         {
-            // Skip info blocks and hidden fields
-            if (field.FieldType is FieldTypes.Info or FieldTypes.Hidden) continue;
+            // Skip info blocks, hidden fields, and map widgets
+            if (field.FieldType is FieldTypes.Info or FieldTypes.Hidden or FieldTypes.Map) continue;
+
+            // File fields: check uploaded files by matching the form input name
+            if (field.FieldType is FieldTypes.File)
+            {
+                var inputName = $"Files[{field.FieldKey}]";
+                var hasFile = files != null
+                    && files.Any(f => f.Name == inputName && f.Length > 0);
+
+                if (field.IsRequired && !hasFile)
+                    errors[field.FieldKey] = $"{field.Label} is required.";
+
+                continue;
+            }
 
             values.TryGetValue(field.FieldKey, out var raw);
             var value = raw?.Trim() ?? string.Empty;

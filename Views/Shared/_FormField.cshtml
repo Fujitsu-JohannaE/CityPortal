@@ -7,7 +7,9 @@
     var hasErr   = vm.HasError(field.FieldKey);
     var errMsg   = vm.GetError(field.FieldKey);
     var inputName = $"Values[{field.FieldKey}]";
-    var isConditional = !string.IsNullOrEmpty(field.ConditionalOnField);
+    // Map fields use ConditionalOnField to store the target address key, not for show/hide
+    var isConditional = !string.IsNullOrEmpty(field.ConditionalOnField)
+                        && field.FieldType != FieldTypes.Map;
 }
 
 <div class="mb-3 form-field-wrapper"
@@ -95,17 +97,42 @@
             break;
 
         case FieldTypes.File:
-            <input class="form-control @(hasErr ? "virheellinen arvo" : "")"
+            <input class="form-control @(hasErr ? "is-invalid" : "")"
                    type="file"
                    id="@field.FieldKey"
                    name="Files[@field.FieldKey]"
-                   @(field.IsRequired ? "vaadittu" : "") />
+                   multiple
+                   accept=".jpg,.jpeg,.png,.gif,.webp,.pdf" />
+            <div class="form-text text-muted">
+                <i class="bi bi-paperclip me-1"></i>Voit valita useita tiedostoja kerralla. Sallitut: JPG, PNG, GIF, WebP, PDF (max 5 MB / tiedosto).
+            </div>
             break;
 
         case FieldTypes.Info:
             <div class="alert alert-info py-2">
                 <i class="bi bi-info-circle me-2"></i>@Html.Raw(field.HelpText)
             </div>
+            break;
+
+        case FieldTypes.Map:
+            // The ConditionalOnField points to the address field this map writes to
+            var targetAddressField = field.ConditionalOnField ?? "treeAddress";
+            
+            <div class="card border-0 bg-light mb-2">
+                <div class="card-body p-2">
+                    <div id="map-@field.FieldKey"
+                         class="location-map rounded"
+                         style="height: 350px; z-index: 0;"
+                         data-target-address-field="@targetAddressField">
+                    </div>
+                    <div id="map-status-@field.FieldKey" class="mt-2 small text-muted">
+                        <i class="bi bi-geo-alt me-1"></i>Haetaan sijaintia...
+                    </div>
+                </div>
+            </div>
+            @* Hidden inputs to store lat/lon with the submission *@
+            <input type="hidden" id="@(field.FieldKey)_lat" name="Values[@(field.FieldKey)_lat]" />
+            <input type="hidden" id="@(field.FieldKey)_lon" name="Values[@(field.FieldKey)_lon]" />
             break;
 
         case FieldTypes.Hidden:

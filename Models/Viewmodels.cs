@@ -75,8 +75,9 @@ public class SubmissionDetailViewModel
     {
         foreach (var field in Fields.OrderBy(f => f.DisplayOrder))
         {
-            if (field.FieldType == FieldTypes.Hidden) continue;
-            if (field.FieldType == FieldTypes.Info) continue;
+            if (field.FieldType is FieldTypes.Hidden or FieldTypes.Info
+                                 or FieldTypes.Map or FieldTypes.File)
+                continue;
 
             var value = Submission.FormData.GetValueOrDefault(field.FieldKey, "—");
             yield return (field.Label, value);

@@ -40,6 +40,9 @@ builder.Services.AddScoped<IFormService, FormService>();
 builder.Services.AddScoped<ISubmissionService, SubmissionService>();
 builder.Services.AddScoped<FormValidationService>();
 
+// ─── HttpClient for NLS geocoding proxy ──────────────────────────────────────
+builder.Services.AddHttpClient("NlsGeocoding");
+
 var app = builder.Build();
 
 app.UseStaticFiles();

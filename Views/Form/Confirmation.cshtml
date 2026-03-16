@@ -1,18 +1,24 @@
 ﻿@model CityPortal.Models.FormSubmission
 @{
-    ViewData["Title"] = "Request Submitted";
+    ViewData["Title"] = "Pyyntö lähetetty";
     var tenantSlug = ViewBag.TenantSlug as string;
+    var tenantName = ViewBag.TenantName as string;
+    var redirectSeconds = 8;
 }
 
 <div class="row justify-content-center">
     <div class="col-md-7 text-center py-5">
-        <div class="mb-4">
-            <i class="bi bi-check-circle-fill text-success" style="font-size:4rem"></i>
+
+        @* ── Success alert ─────────────────────────────────────────────────── *@
+        <div class="alert alert-success shadow-sm border-0 py-4 mb-4" role="alert">
+            <i class="bi bi-check-circle-fill" style="font-size:3rem"></i>
+            <h2 class="h4 mt-3 mb-2">Pyyntö lähetetty onnistuneesti!</h2>
+            <p class="mb-0">
+                Lomakkeesi <strong>@Model?.FormTitle</strong> on vastaanotettu
+                ja se käsitellään kaupungin viranomaisten toimesta.
+            </p>
         </div>
-        <h1 class="h3 mb-2">Pyyntö lähetetty!</h1>
-        <p class="text-muted mb-4">
-            Lomakkeesi <strong>@Model?.FormTitle</strong> on vastaanotettu ja se käsitellään kaupungin viranomaisten toimesta.
-        </p>
+
         @if (Model != null)
         {
             <div class="card border-0 bg-light text-start mb-4">
@@ -32,6 +38,12 @@
                 </div>
             </div>
         }
+
+        <p class="text-muted small mb-3">
+            <i class="bi bi-arrow-return-left me-1"></i>
+            Sinut ohjataan takaisin etusivulle <span id="countdown">@redirectSeconds</span> sekunnin kuluttua.
+        </p>
+
         <a href="/@tenantSlug/forms" class="btn btn-primary me-2">
             <i class="bi bi-arrow-left me-1"></i>Takaisin lomakkeisiin
         </a>
@@ -40,3 +52,21 @@
         </a>
     </div>
 </div>
+
+@section Scripts {
+    <script>
+        (function () {
+            let seconds = @redirectSeconds;
+            const el = document.getElementById('countdown');
+            const returnUrl = '/@tenantSlug/forms';
+            const timer = setInterval(() => {
+                seconds--;
+                if (el) el.textContent = seconds;
+                if (seconds <= 0) {
+                    clearInterval(timer);
+                    window.location.href = returnUrl;
+                }
+            }, 1000);
+        })();
+    </script>
+}
