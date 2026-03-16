@@ -158,14 +158,21 @@ public static class DbSeeder
 
         new() { Id=Guid.NewGuid(), FormDefinitionId=formId,
                 FieldKey="reporterEmail",   Label="Sähköpostiosoite",
-                FieldType=FieldTypes.Email, IsRequired=false, DisplayOrder=20,
-                GroupName="Yhteystietosi",  Placeholder="Valinnainen — tilapäivityksiä varten",
+                FieldType=FieldTypes.Email, IsRequired=true, DisplayOrder=20,
+                GroupName="Yhteystietosi",  Placeholder="Tilapäivityksiä varten",
                 HelpText="Käytämme tätä vain ilmoituksesi tilapäivityksiin." },
 
         new() { Id=Guid.NewGuid(), FormDefinitionId=formId,
                 FieldKey="streetAddress",   Label="Vaurion katuosoite",
                 FieldType=FieldTypes.Text,  IsRequired=true,  DisplayOrder=30,
                 GroupName="Sijainti",       Placeholder="esim. Keskuskatu 10" },
+
+        new() { Id=Guid.NewGuid(), FormDefinitionId=formId,
+                FieldKey="locationMap",     Label="Näytä sijainti kartalla",
+                FieldType=FieldTypes.Map,   IsRequired=false, DisplayOrder=31,
+                GroupName="Sijainti",
+                ConditionalOnField="streetAddress",
+                HelpText="Salli sijainnin käyttö, niin kartta näyttää sijaintisi ja ehdottaa osoitetta automaattisesti." },
 
         new() { Id=Guid.NewGuid(), FormDefinitionId=formId,
                 FieldKey="severity",        Label="Kuinka vakava vaurio on?",
@@ -190,7 +197,7 @@ public static class DbSeeder
 
         new() { Id=Guid.NewGuid(), FormDefinitionId=formId,
                 FieldKey="photo",          Label="Liitä kuva",
-                FieldType=FieldTypes.File, IsRequired=false, DisplayOrder=70,
+                FieldType=FieldTypes.File, IsRequired=true, DisplayOrder=70,
                 GroupName="Vaurion tiedot",
                 HelpText="JPG tai PNG, enintään 5 Mt." },
     ];
@@ -288,6 +295,13 @@ public static class DbSeeder
                 GroupName="Puun tiedot",    Placeholder="esim. Ratatie 5" },
 
         new() { Id=Guid.NewGuid(), FormDefinitionId=formId,
+                FieldKey="treeLocationMap", Label="Näytä sijainti kartalla",
+                FieldType=FieldTypes.Map,   IsRequired=false, DisplayOrder=41,
+                GroupName="Puun tiedot",
+                ConditionalOnField="treeAddress",
+                HelpText="Salli sijainnin käyttö, niin kartta näyttää sijaintisi ja ehdottaa osoitetta automaattisesti." },
+
+        new() { Id=Guid.NewGuid(), FormDefinitionId=formId,
                 FieldKey="treeDescription", Label="Kuvaile puuta ja ongelmaa",
                 FieldType=FieldTypes.Textarea, IsRequired=true, DisplayOrder=50,
                 GroupName="Puun tiedot",
@@ -298,6 +312,12 @@ public static class DbSeeder
                 FieldType=FieldTypes.Select, IsRequired=true, DisplayOrder=60,
                 GroupName="Puun tiedot",
                 Options="""["Matala — seuraava aikataulutettu kierros","Kohtalainen — kuukauden sisällä","Korkea — turvallisuusriski"]""" },
+
+        new() { Id=Guid.NewGuid(), FormDefinitionId=formId,
+                FieldKey="photo",            Label="Liitä kuva puusta",
+                FieldType=FieldTypes.File,   IsRequired=true, DisplayOrder=70,
+                GroupName="Puun tiedot",
+                HelpText="JPG tai PNG, enintään 5 Mt." },
     ];
 
     private static List<FormField> NoiseComplaintFields(Guid formId, bool includeRepeatOffenceField)
@@ -318,6 +338,12 @@ public static class DbSeeder
                     FieldKey="complainantAddress", Label="Osoitteesi",
                     FieldType=FieldTypes.Text,     IsRequired=true, DisplayOrder=20,
                     GroupName="Yhteystietosi" },
+
+            new() { Id=Guid.NewGuid(), FormDefinitionId=formId,
+                    FieldKey="complainantEmail",  Label="Sähköpostiosoite",
+                    FieldType=FieldTypes.Email,   IsRequired=true, DisplayOrder=25,
+                    GroupName="Yhteystietosi",
+                    HelpText="Käytämme tätä ilmoituksesi tilapäivityksiin." },
 
             new() { Id=Guid.NewGuid(), FormDefinitionId=formId,
                     FieldKey="noiseAddress",    Label="Osoite, jossa meluhaittaa",

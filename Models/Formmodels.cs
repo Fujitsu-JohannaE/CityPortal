@@ -18,6 +18,7 @@ public static class FieldTypes
     public const string File = "file";
     public const string Hidden = "hidden";
     public const string Info = "info";
+    public const string Map = "map";
 }
 
 public static class SubmissionStatus
