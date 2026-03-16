@@ -71,8 +71,7 @@ public class FormController : Controller
     public async Task<IActionResult> Submit(
         string tenantSlug,
         string slug,
-        [FromForm] Dictionary<string, string> Values,
-        [FromForm] Dictionary<string, IFormFile?> Files)
+        [FromForm] Dictionary<string, string> Values)
     {
         var tenant = _tenantResolver.Resolve(tenantSlug);
         if (tenant == null) return NotFound();
@@ -85,16 +84,21 @@ public class FormController : Controller
             return Forbid();
 
         // Server-side validation
-        var errors = _validator.Validate(definition.Fields, Values);
+        var formFiles = Request.Form.Files;
+        var errors = _validator.Validate(definition.Fields, Values, formFiles);
         if (errors.Any())
         {
             var vm = BuildViewModel(definition, isAuthenticated, Values, errors);
             return View("Render", vm);
         }
 
+        // Generate ID up front so blob paths are deterministic
+        var submissionId = Guid.NewGuid();
+
         // Build submission — FormData is the JSON column payload
         var submission = new FormSubmission
         {
+            Id = submissionId,
             TenantId = tenant.TenantId,
             FormDefinitionId = definition.Id,
             FormSlug = definition.Slug,
@@ -108,28 +112,58 @@ public class FormController : Controller
         };
 
         // Upload file attachments to shared Azure Blob Storage
-        foreach (var file in Files.Where(f => f.Value != null))
+        // Track file names per field so we can store them in FormData
+        var filesByField = new Dictionary<string, List<string>>();
+        foreach (var file in formFiles.Where(f => f.Length > 0))
         {
-            var blobPath = $"{tenantSlug}/{slug}/{submission.Id}/{file.Value!.FileName}";
-            using var stream = file.Value.OpenReadStream();
-            var (uploadedPath, uploadError) = await _blobStorage.UploadAsync(
-                "form-attachments", blobPath, stream,
-                file.Value.ContentType, file.Value.FileName, file.Value.Length);
-
-            if (uploadError != null)
+            var fieldKey = file.Name.Replace("Files[", "").TrimEnd(']');
+            var blobPath = $"{tenantSlug}/{slug}/{submissionId}/{file.FileName}";
+            try
             {
-                errors[file.Key] = uploadError;
-                var vm = BuildViewModel(definition, isAuthenticated, Values, errors);
-                return View("Render", vm);
+                using var stream = file.OpenReadStream();
+                var (uploadedPath, uploadError) = await _blobStorage.UploadAsync(
+                    "form-attachments", blobPath, stream,
+                    file.ContentType, file.FileName, file.Length);
+
+                if (uploadError != null)
+                {
+                    errors[fieldKey] = uploadError;
+                    var vm = BuildViewModel(definition, isAuthenticated, Values, errors);
+                    return View("Render", vm);
+                }
+
+                submission.Attachments.Add(new AttachmentReference
+                {
+                    FileName = file.FileName,
+                    BlobPath = uploadedPath!,
+                    ContentType = file.ContentType,
+                    FileSizeBytes = file.Length
+                });
+            }
+            catch (Exception)
+            {
+                // Blob storage unavailable (e.g. Azurite not running locally)
+                // Store attachment reference without upload so the form still works
+                submission.Attachments.Add(new AttachmentReference
+                {
+                    FileName = file.FileName,
+                    BlobPath = blobPath,
+                    ContentType = file.ContentType,
+                    FileSizeBytes = file.Length,
+                    MalwareScanResult = MalwareScanStatus.Error
+                });
             }
 
-            submission.Attachments.Add(new AttachmentReference
-            {
-                FileName = file.Value.FileName,
-                BlobPath = uploadedPath!,
-                ContentType = file.Value.ContentType,
-                FileSizeBytes = file.Value.Length
-            });
+            // Track file name for FormData storage
+            if (!filesByField.ContainsKey(fieldKey))
+                filesByField[fieldKey] = new();
+            filesByField[fieldKey].Add(file.FileName);
+        }
+
+        // Store uploaded file names in FormData so they appear in admin detail / JSON
+        foreach (var (fieldKey, names) in filesByField)
+        {
+            Values[fieldKey] = string.Join(", ", names);
         }
 
         _submissionService.Save(tenant.TenantId, submission);
@@ -173,11 +207,19 @@ public class FormController : Controller
         if (attachment.MalwareScanResult == MalwareScanStatus.Malicious)
             return StatusCode(403, "Tiedosto on estetty haittaohjelmien vuoksi.");
 
-        var result = await _blobStorage.DownloadAsync("form-attachments", attachment.BlobPath);
-        if (result == null)
-            return NotFound();
+        try
+        {
+            var result = await _blobStorage.DownloadAsync("form-attachments", attachment.BlobPath);
+            if (result == null)
+                return NotFound();
 
-        return File(result.Content, result.ContentType, result.FileName);
+            return File(result.Content, result.ContentType, result.FileName);
+        }
+        catch
+        {
+            // Blob storage unavailable (e.g. Azurite not running locally)
+            return StatusCode(503, "Tiedostopalvelu ei ole käytettävissä.");
+        }
     }
 
     // ─── Helper ───────────────────────────────────────────────────────────────

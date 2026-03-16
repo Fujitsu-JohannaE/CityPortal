@@ -106,15 +106,23 @@ public class AdminController : Controller
         if (attachment.MalwareScanResult == MalwareScanStatus.Malicious)
             return StatusCode(403, "Tiedosto on estetty haittaohjelmien vuoksi.");
 
-        var result = await _blobStorage.DownloadAsync("form-attachments", attachment.BlobPath);
-        if (result == null)
-            return NotFound();
+        try
+        {
+            var result = await _blobStorage.DownloadAsync("form-attachments", attachment.BlobPath);
+            if (result == null)
+                return NotFound();
 
-        // For images, allow inline display; for PDFs, force download
-        if (result.ContentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase))
-            return File(result.Content, result.ContentType);
+            // For images, allow inline display; for PDFs, force download
+            if (result.ContentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase))
+                return File(result.Content, result.ContentType);
 
-        return File(result.Content, result.ContentType, result.FileName);
+            return File(result.Content, result.ContentType, result.FileName);
+        }
+        catch
+        {
+            // Blob storage unavailable (e.g. Azurite not running locally)
+            return StatusCode(503, "Tiedostopalvelu ei ole käytettävissä.");
+        }
     }
 
     // ─── Refresh scan status for an attachment ───────────────────────────────

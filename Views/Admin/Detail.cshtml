@@ -4,6 +4,27 @@
     ViewData["Title"] = "Asiakirjan tiedot";
     var sub        = Model.Submission;
     var tenantSlug = ViewBag.TenantSlug as string;
+
+    // Check if submission has lat/lon coordinates from a map field
+    var mapFields = Model.Fields.Where(f => f.FieldType == FieldTypes.Map).ToList();
+    string? mapLat = null;
+    string? mapLon = null;
+    string? mapAddress = null;
+    foreach (var mf in mapFields)
+    {
+        sub.FormData.TryGetValue(mf.FieldKey + "_lat", out var lat);
+        sub.FormData.TryGetValue(mf.FieldKey + "_lon", out var lon);
+        if (!string.IsNullOrEmpty(lat) && !string.IsNullOrEmpty(lon))
+        {
+            mapLat = lat;
+            mapLon = lon;
+            // Get the address from the target field
+            var addressKey = mf.ConditionalOnField;
+            if (addressKey != null)
+                sub.FormData.TryGetValue(addressKey, out mapAddress);
+            break;
+        }
+    }
 }
 
 <nav aria-label="breadcrumb" class="mb-4">
@@ -87,49 +108,154 @@
                     }
                 </dl>
 
+                @* ── Location map (read-only, shown when lat/lon exist) ── *@
+                @if (mapLat != null && mapLon != null)
+                {
+                    <hr />
+                    <h6 class="text-muted small text-uppercase mb-2">
+                        <i class="bi bi-geo-alt-fill me-1"></i>Sijainti kartalla
+                    </h6>
+                    <div id="admin-map" class="rounded mb-2" style="height: 300px; z-index: 0;"
+                         data-lat="@mapLat" data-lon="@mapLon"
+                         data-address="@(mapAddress ?? "")">
+                    </div>
+                    <div class="small text-muted mb-2">
+                        <i class="bi bi-crosshair me-1"></i>
+                        Koordinaatit: @mapLat, @mapLon
+                    </div>
+                }
+
                 @* Attachments *@
                 @if (sub.Attachments.Any())
                 {
                     <hr />
                     <h6 class="text-muted small text-uppercase mb-2">
-                        <i class="bi bi-paperclip me-1"></i>Liitteet
+                        <i class="bi bi-paperclip me-1"></i>Liitteet (@sub.Attachments.Count kpl)
                     </h6>
-                    @foreach (var att in sub.Attachments)
+
+                    @* ── Image previews grid ── *@
+                    var imageAttachments = sub.Attachments
+                        .Where(a => a.ContentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase))
+                        .ToList();
+                    var otherAttachments = sub.Attachments
+                        .Where(a => !a.ContentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase))
+                        .ToList();
+
+                    @if (imageAttachments.Any())
                     {
-                        var isImage = att.ContentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase);
+                        <div class="row g-2 mb-3">
+                            @foreach (var att in imageAttachments)
+                            {
+                                var isMalicious = att.MalwareScanResult == "Malicious";
+                                var isPending = att.MalwareScanResult == "Pending";
+                                var isClean = att.MalwareScanResult == "Clean";
+                                var imgUrl = $"/{tenantSlug}/admin/submission/{sub.Id}/attachment/{att.FileName}";
+
+                                <div class="col-6 col-md-4">
+                                    <div class="card border @(isMalicious ? "border-danger" : "border-0") shadow-sm h-100">
+                                        @if (isMalicious)
+                                        {
+                                            <div class="card-img-top bg-danger bg-opacity-10 d-flex align-items-center justify-content-center"
+                                                 style="height:140px">
+                                                <div class="text-center text-danger">
+                                                    <i class="bi bi-shield-exclamation fs-1"></i>
+                                                    <div class="small mt-1">Estetty</div>
+                                                </div>
+                                            </div>
+                                        }
+                                        else
+                                        {
+                                            <a href="#" data-bs-toggle="modal" data-bs-target="#lightboxModal"
+                                               onclick="document.getElementById('lightboxImg').src='@imgUrl';document.getElementById('lightboxTitle').textContent='@att.FileName';">
+                                                <img src="@imgUrl"
+                                                     alt="@att.FileName"
+                                                     class="card-img-top"
+                                                     style="height:140px; object-fit:cover; cursor:zoom-in;" />
+                                            </a>
+                                        }
+                                        <div class="card-body p-2">
+                                            <div class="d-flex align-items-center justify-content-between">
+                                                <span class="small text-truncate" title="@att.FileName"
+                                                      style="max-width:120px">@att.FileName</span>
+                                                <div class="d-flex gap-1">
+                                                    @if (isClean)
+                                                    {
+                                                        <span class="badge bg-success" title="Puhdas">
+                                                            <i class="bi bi-shield-check"></i>
+                                                        </span>
+                                                    }
+                                                    else if (isMalicious)
+                                                    {
+                                                        <span class="badge bg-danger" title="Haittaohjelma">
+                                                            <i class="bi bi-shield-exclamation"></i>
+                                                        </span>
+                                                    }
+                                                    else if (isPending)
+                                                    {
+                                                        <span class="badge bg-warning text-dark" title="Tarkistus käynnissä">
+                                                            <i class="bi bi-hourglass-split"></i>
+                                                        </span>
+                                                    }
+                                                </div>
+                                            </div>
+                                            <div class="text-muted" style="font-size:0.7rem">
+                                                @(att.FileSizeBytes / 1024) KB
+                                            </div>
+                                            <div class="mt-1 d-flex gap-1">
+                                                @if (!isMalicious)
+                                                {
+                                                    <a href="@imgUrl" download="@att.FileName"
+                                                       class="btn btn-sm btn-outline-primary py-0 px-1" title="Lataa">
+                                                        <i class="bi bi-download" style="font-size:0.75rem"></i>
+                                                    </a>
+                                                }
+                                                @if (isPending)
+                                                {
+                                                    <form method="post"
+                                                          action="/@tenantSlug/admin/submission/@sub.Id/attachment/@att.FileName/scan"
+                                                          class="d-inline">
+                                                        @Html.AntiForgeryToken()
+                                                        <button type="submit" class="btn btn-sm btn-outline-secondary py-0 px-1"
+                                                                title="Päivitä tarkistuksen tila">
+                                                            <i class="bi bi-arrow-clockwise" style="font-size:0.75rem"></i>
+                                                        </button>
+                                                    </form>
+                                                }
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    }
+
+                    @* ── Non-image attachments (PDF etc.) ── *@
+                    @foreach (var att in otherAttachments)
+                    {
                         var isMalicious = att.MalwareScanResult == "Malicious";
                         var isPending = att.MalwareScanResult == "Pending";
                         var isClean = att.MalwareScanResult == "Clean";
 
                         <div class="d-flex align-items-center p-2 bg-light rounded mb-2 @(isMalicious ? "border border-danger" : "")">
-                            @if (isImage)
-                            {
-                                <i class="bi bi-file-earmark-image me-2 text-primary"></i>
-                            }
-                            else
-                            {
-                                <i class="bi bi-file-earmark me-2 text-muted"></i>
-                            }
+                            <i class="bi bi-file-earmark me-2 text-muted"></i>
                             <div class="flex-grow-1">
                                 <div class="d-flex align-items-center gap-2">
                                     <span class="small fw-semibold">@att.FileName</span>
-
-                                    @* Defender scan status badge *@
                                     @if (isClean)
                                     {
-                                        <span class="badge bg-success" title="Microsoft Defender: No threats found">
+                                        <span class="badge bg-success" title="Puhdas">
                                             <i class="bi bi-shield-check me-1"></i>Puhdas
                                         </span>
                                     }
                                     else if (isMalicious)
                                     {
-                                        <span class="badge bg-danger" title="Microsoft Defender: Malware detected">
+                                        <span class="badge bg-danger" title="Haittaohjelma">
                                             <i class="bi bi-shield-exclamation me-1"></i>Haittaohjelma
                                         </span>
                                     }
                                     else if (isPending)
                                     {
-                                        <span class="badge bg-warning text-dark" title="Scan in progress">
+                                        <span class="badge bg-warning text-dark" title="Tarkistus käynnissä">
                                             <i class="bi bi-hourglass-split me-1"></i>Tarkistus käynnissä
                                         </span>
                                     }
@@ -243,3 +369,65 @@
     </div>
 
 </div>
+
+@* ── Lightbox modal for full-size image preview ── *@
+<div class="modal fade" id="lightboxModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content border-0 bg-transparent shadow-none">
+            <div class="modal-header border-0 bg-dark bg-opacity-75 text-white py-2">
+                <span id="lightboxTitle" class="small"></span>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-0 text-center bg-dark bg-opacity-75">
+                <img id="lightboxImg" src="" alt="Preview"
+                     class="img-fluid" style="max-height:80vh; object-fit:contain;" />
+            </div>
+        </div>
+    </div>
+</div>
+
+@if (mapLat != null && mapLon != null)
+{
+    @section Styles {
+        <link rel="stylesheet" href="/lib/leaflet/leaflet.css" />
+        <link rel="stylesheet" href="/lib/leaflet/leaflet.fullscreen.css" />
+    }
+
+    @section Scripts {
+        <script src="/lib/leaflet/leaflet.js"></script>
+        <script src="/lib/leaflet/leaflet.fullscreen.min.js"></script>
+        <script>
+            document.addEventListener('DOMContentLoaded', () => {
+                const el = document.getElementById('admin-map');
+                if (!el) return;
+
+                const lat = parseFloat(el.dataset.lat);
+                const lon = parseFloat(el.dataset.lon);
+                const address = el.dataset.address;
+
+                if (isNaN(lat) || isNaN(lon)) return;
+
+                const map = L.map('admin-map', {
+                    scrollWheelZoom: false,
+                    fullscreenControl: {
+                        position: 'topleft',
+                        title: {
+                            'false': 'Koko näyttö',
+                            'true': 'Poistu koko näytöstä'
+                        }
+                    }
+                }).setView([lat, lon], 16);
+
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+                    maxZoom: 19
+                }).addTo(map);
+
+                const marker = L.marker([lat, lon]).addTo(map);
+                if (address) {
+                    marker.bindPopup(`<strong>${address}</strong>`).openPopup();
+                }
+            });
+        </script>
+    }
+}

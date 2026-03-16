@@ -136,7 +136,7 @@
                         }
                     </dd>
                     <dt class="mt-2">Kentät</dt>
-                    <dd>@Model.Fields.Count(f => f.FieldType != FieldTypes.Info) kenttää</dd>
+                    <dd>@Model.Fields.Count(f => f.FieldType != FieldTypes.Info && f.FieldType != FieldTypes.Map) kenttää</dd>
                     <dt class="mt-2">Pakolliset kentät</dt>
                     <dd>@Model.Fields.Count(f => f.IsRequired)</dd>
                 </dl>
@@ -154,3 +154,21 @@
         </div>
     </div>
 </div>
+
+@{
+    var hasMapField = Model.Fields.Any(f => f.FieldType == FieldTypes.Map);
+}
+
+@if (hasMapField)
+{
+    @section Styles {
+        <link rel="stylesheet" href="/lib/leaflet/leaflet.css" />
+        <link rel="stylesheet" href="/lib/leaflet/leaflet.fullscreen.css" />
+    }
+
+    @section Scripts {
+        <script src="/lib/leaflet/leaflet.js"></script>
+        <script src="/lib/leaflet/leaflet.fullscreen.min.js"></script>
+        <script src="/js/location-map.js"></script>
+    }
+}
