@@ -10,6 +10,7 @@
 *.userosscache
 *.sln.docstates
 appsettings.json
+appsettings.development.json
 terraform.tfvars.example
 
 # User-specific files (MonoDevelop/Xamarin Studio)
