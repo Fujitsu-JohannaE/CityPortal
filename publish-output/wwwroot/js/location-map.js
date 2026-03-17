@@ -20,7 +20,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const mapId = container.id;
         const fieldKey = mapId.replace('map-', '');
         const targetFieldKey = container.dataset.targetAddressField;
-        const municipality = container.dataset.municipality || '';
         const statusEl = document.getElementById(`map-status-${fieldKey}`);
         const latInput = document.getElementById(`${fieldKey}_lat`);
         const lonInput = document.getElementById(`${fieldKey}_lon`);
@@ -170,135 +169,16 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         // ── Track if user manually edits the address field ───────────────
-        // ── Forward geocode: address text → map location ─────────────────
-        let searchTimer = null;
-        let suggestionsEl = null;
-
         if (addressInput) {
-            // Create suggestions dropdown
-            suggestionsEl = document.createElement('div');
-            suggestionsEl.className = 'list-group position-absolute w-100 shadow-sm';
-            suggestionsEl.style.cssText = 'z-index:1050; max-height:220px; overflow-y:auto; display:none;';
-            addressInput.parentElement.style.position = 'relative';
-            addressInput.parentElement.appendChild(suggestionsEl);
-
             addressInput.addEventListener('input', () => {
                 addressInput._userEdited = true;
-
-                // Debounce: wait 400ms after user stops typing
-                clearTimeout(searchTimer);
-                const query = addressInput.value.trim();
-                if (query.length < 3) {
-                    suggestionsEl.style.display = 'none';
-                    return;
-                }
-
-                searchTimer = setTimeout(() => forwardGeocode(query), 400);
             });
-
             // Reset flag if field is cleared
             addressInput.addEventListener('change', () => {
                 if (!addressInput.value.trim()) {
                     addressInput._userEdited = false;
                 }
             });
-
-            // Close suggestions when clicking outside
-            document.addEventListener('click', (e) => {
-                if (suggestionsEl && !suggestionsEl.contains(e.target) && e.target !== addressInput) {
-                    suggestionsEl.style.display = 'none';
-                }
-            });
-        }
-
-        function forwardGeocode(query) {
-            if (statusEl) {
-                statusEl.innerHTML =
-                    '<i class="bi bi-arrow-repeat me-1 spin"></i>Haetaan osoitetta...';
-            }
-
-            // Build search URL with location bias and municipality filter
-            let searchUrl = `/api/geocoding/search?text=${encodeURIComponent(query)}`;
-
-            // Bias results toward the current marker/GPS position (nearby first)
-            const currentLat = latInput?.value;
-            const currentLon = lonInput?.value;
-            if (currentLat && currentLon) {
-                searchUrl += `&focus.lat=${currentLat}&focus.lon=${currentLon}`;
-            }
-
-            // If query contains a comma (e.g. "Mannerheimintie 1, Helsinki"),
-            // the user is specifying a city — don't restrict to tenant municipality.
-            // Otherwise, restrict to tenant's municipality for more relevant results.
-            const hasCity = query.includes(',');
-            if (municipality && !hasCity) {
-                searchUrl += `&municipality=${encodeURIComponent(municipality)}`;
-            }
-
-            fetch(searchUrl)
-                .then(res => res.json())
-                .then(data => {
-                    if (!data.features || data.features.length === 0) {
-                        suggestionsEl.innerHTML =
-                            '<div class="list-group-item text-muted small py-2">'
-                            + '<i class="bi bi-info-circle me-1"></i>Osoitetta ei löytynyt</div>';
-                        suggestionsEl.style.display = 'block';
-                        return;
-                    }
-
-                    suggestionsEl.innerHTML = '';
-                    data.features.forEach(feature => {
-                        const props = feature.properties || {};
-                        const coords = feature.geometry?.coordinates; // [lon, lat]
-                        const label = buildAddress(props);
-
-                        // Show city name in suggestion if different from tenant municipality
-                        const city = props.locality || '';
-                        const showCity = city && city.toLowerCase() !== municipality.toLowerCase();
-
-                        const item = document.createElement('button');
-                        item.type = 'button';
-                        item.className = 'list-group-item list-group-item-action py-2 small';
-                        item.innerHTML = `<i class="bi bi-geo-alt me-1 text-primary"></i>${label}`
-                            + (showCity ? ` <span class="text-muted">(${city})</span>` : '');
-
-                        item.addEventListener('click', () => {
-                            if (coords) {
-                                const lat = coords[1];
-                                const lon = coords[0];
-
-                                // Update address without triggering reverse geocode
-                                addressInput.value = label;
-                                addressInput._userEdited = true;
-                                if (latInput) latInput.value = lat.toFixed(6);
-                                if (lonInput) lonInput.value = lon.toFixed(6);
-
-                                setMarker(lat, lon);
-
-                                if (marker) {
-                                    marker.bindPopup(`<strong>${label}</strong>`).openPopup();
-                                }
-
-                                if (statusEl) {
-                                    statusEl.innerHTML =
-                                        `<i class="bi bi-geo-alt-fill text-success me-1"></i>`
-                                        + `<strong>${label}</strong>`
-                                        + `<br><span class="text-muted" style="font-size:0.75rem">`
-                                        + `${lat.toFixed(5)}, ${lon.toFixed(5)}`
-                                        + ` — Klikkaa karttaa tai siirrä merkkiä tarkentaaksesi sijaintia</span>`;
-                                }
-                            }
-                            suggestionsEl.style.display = 'none';
-                        });
-
-                        suggestionsEl.appendChild(item);
-                    });
-                    suggestionsEl.style.display = 'block';
-                })
-                .catch(err => {
-                    console.warn('Forward geocoding failed:', err);
-                    suggestionsEl.style.display = 'none';
-                });
         }
 
         // ── Request GPS location ─────────────────────────────────────────

@@ -56,14 +56,3 @@ summary {
     summary:hover {
         color: #0d6efd;
     }
-
-/* Spin animation for geocoding loading indicator */
-.spin {
-    display: inline-block;
-    animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-    from { transform: rotate(0deg); }
-    to { transform: rotate(360deg); }
-}

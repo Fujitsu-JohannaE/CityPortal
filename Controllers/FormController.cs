@@ -61,6 +61,8 @@ public class FormController : Controller
         }
 
         var vm = BuildViewModel(definition, isAuthenticated, new(), new());
+        ViewBag.TenantSlug = tenantSlug;
+        ViewBag.TenantName = tenant.TenantName;
         return View("Render", vm);
     }
 
