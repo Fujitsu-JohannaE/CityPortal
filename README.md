@@ -7,7 +7,7 @@ Finnish cities can deploy the same codebase with fully tenant-specific forms, fi
 
 ---
 
-## For recruiters and technical leads
+## For techical leads
 
 A few things that may stand out if you're evaluating this as a portfolio piece:
 
